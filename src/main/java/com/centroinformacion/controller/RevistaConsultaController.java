@@ -1,10 +1,14 @@
 package com.centroinformacion.controller;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
@@ -36,6 +40,12 @@ import com.centroinformacion.util.AppSettings;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import net.sf.jasperreports.engine.JasperExportManager;
+import net.sf.jasperreports.engine.JasperFillManager;
+import net.sf.jasperreports.engine.JasperPrint;
+import net.sf.jasperreports.engine.JasperReport;
+import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
+import net.sf.jasperreports.engine.util.JRLoader;
 
 @RestController
 @RequestMapping("/url/consultaRevista")
@@ -67,8 +77,7 @@ public class RevistaConsultaController {
 	private static int[] HEADER_WITH = { 3000, 10000, 10000, 6000, 6000, 6000, 6000 };
 
 	@PostMapping("/reporteRevistaExcel")
-	public void reporteExcel(
-			@RequestParam(name = "nombre", required = true, defaultValue = "") String nombre,
+	public void reporteExcel(@RequestParam(name = "nombre", required = true, defaultValue = "") String nombre,
 			@RequestParam(name = "frecuencia", required = true, defaultValue = "") String frecuencia,
 			@RequestParam(name = "fecDesde", required = true, defaultValue = "") @DateTimeFormat(pattern = "yyyy-MM-dd") Date fecDesde,
 			@RequestParam(name = "fecHasta", required = true, defaultValue = "") @DateTimeFormat(pattern = "yyyy-MM-dd") Date fecHasta,
@@ -78,9 +87,9 @@ public class RevistaConsultaController {
 			HttpServletRequest request, HttpServletResponse response) {
 
 		Workbook excel = null;
-		try  {
+		try {
 			excel = new XSSFWorkbook();
-					
+
 			// Se crear la hoja del Excel
 			Sheet hoja = excel.createSheet(SHEET);
 
@@ -108,24 +117,23 @@ public class RevistaConsultaController {
 			estiloCeldaCentrado.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
 			estiloCeldaCentrado.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
+			// Estilo para datos
+			CellStyle estiloDatosCentrado = excel.createCellStyle();
+			estiloDatosCentrado.setAlignment(HorizontalAlignment.CENTER);
+			estiloDatosCentrado.setVerticalAlignment(VerticalAlignment.CENTER);
+			estiloDatosCentrado.setBorderBottom(BorderStyle.THIN);
+			estiloDatosCentrado.setBorderTop(BorderStyle.THIN);
+			estiloDatosCentrado.setBorderLeft(BorderStyle.THIN);
+			estiloDatosCentrado.setBorderRight(BorderStyle.THIN);
 
-	        // Estilo para datos
-	        CellStyle estiloDatosCentrado = excel.createCellStyle();
-	        estiloDatosCentrado.setAlignment(HorizontalAlignment.CENTER);
-	        estiloDatosCentrado.setVerticalAlignment(VerticalAlignment.CENTER);
-	        estiloDatosCentrado.setBorderBottom(BorderStyle.THIN);
-	        estiloDatosCentrado.setBorderTop(BorderStyle.THIN);
-	        estiloDatosCentrado.setBorderLeft(BorderStyle.THIN);
-	        estiloDatosCentrado.setBorderRight(BorderStyle.THIN);
-	        
-	        CellStyle estiloDatosIzquierdo = excel.createCellStyle();
-	        estiloDatosIzquierdo.setAlignment(HorizontalAlignment.LEFT);
-	        estiloDatosIzquierdo.setVerticalAlignment(VerticalAlignment.CENTER);
-	        estiloDatosIzquierdo.setBorderBottom(BorderStyle.THIN);
-	        estiloDatosIzquierdo.setBorderTop(BorderStyle.THIN);
-	        estiloDatosIzquierdo.setBorderLeft(BorderStyle.THIN);
-	        estiloDatosIzquierdo.setBorderRight(BorderStyle.THIN);
-	        
+			CellStyle estiloDatosIzquierdo = excel.createCellStyle();
+			estiloDatosIzquierdo.setAlignment(HorizontalAlignment.LEFT);
+			estiloDatosIzquierdo.setVerticalAlignment(VerticalAlignment.CENTER);
+			estiloDatosIzquierdo.setBorderBottom(BorderStyle.THIN);
+			estiloDatosIzquierdo.setBorderTop(BorderStyle.THIN);
+			estiloDatosIzquierdo.setBorderLeft(BorderStyle.THIN);
+			estiloDatosIzquierdo.setBorderRight(BorderStyle.THIN);
+
 			// Fila 0
 			Row fila1 = hoja.createRow(0);
 			Cell celAuxs = fila1.createCell(0);
@@ -152,8 +160,8 @@ public class RevistaConsultaController {
 
 			List<Revista> lstSalida = revistaService.listaConsultaCompleja("%" + nombre + "%", "%" + frecuencia + "%",
 					fecDesde, fecHasta, estado, idPais, idTipo);
-			
-			//List<Revista> lstSalida = revistaService.listaTodos();
+
+			// List<Revista> lstSalida = revistaService.listaTodos();
 			// Filas de datos
 			int rowIdx = 3;
 			for (Revista obj : lstSalida) {
@@ -162,28 +170,28 @@ public class RevistaConsultaController {
 				Cell cel0 = row.createCell(0);
 				cel0.setCellValue(obj.getIdRevista());
 				cel0.setCellStyle(estiloDatosCentrado);
-				
+
 				Cell cel1 = row.createCell(1);
 				cel1.setCellValue(obj.getNombre());
 				cel1.setCellStyle(estiloDatosIzquierdo);
-				
+
 				Cell cel2 = row.createCell(2);
 				cel2.setCellValue(obj.getFrecuencia());
 				cel2.setCellStyle(estiloDatosIzquierdo);
-				
+
 				Cell cel3 = row.createCell(3);
 				cel3.setCellValue(sdf.format(obj.getFechaCreacion()));
 				cel3.setCellStyle(estiloDatosCentrado);
-				
+
 				Cell cel4 = row.createCell(4);
-				cel4.setCellValue(obj.getEstado()==1?AppSettings.ACTIVO_DESC:AppSettings.INACTIVO_DESC);
+				cel4.setCellValue(obj.getEstado() == 1 ? AppSettings.ACTIVO_DESC : AppSettings.INACTIVO_DESC);
 				cel4.setCellStyle(estiloDatosCentrado);
-				
+
 				Cell cel5 = row.createCell(5);
 				cel5.setCellValue(obj.getPais().getNombre());
 				cel5.setCellStyle(estiloDatosCentrado);
-				
-				Cell cel6= row.createCell(6);
+
+				Cell cel6 = row.createCell(6);
 				cel6.setCellValue(obj.getTipoRevista().getDescripcion());
 				cel6.setCellStyle(estiloDatosCentrado);
 			}
@@ -209,4 +217,41 @@ public class RevistaConsultaController {
 
 	}
 
+	@PostMapping("/reporteRevistaPDF")
+	public void reportePDF(@RequestParam(name = "nombre", required = true, defaultValue = "") String nombre,
+			@RequestParam(name = "frecuencia", required = true, defaultValue = "") String frecuencia,
+			@RequestParam(name = "fecDesde", required = true, defaultValue = "") @DateTimeFormat(pattern = "yyyy-MM-dd") Date fecDesde,
+			@RequestParam(name = "fecHasta", required = true, defaultValue = "") @DateTimeFormat(pattern = "yyyy-MM-dd") Date fecHasta,
+			@RequestParam(name = "estado", required = true, defaultValue = "") int estado,
+			@RequestParam(name = "idPais", required = false, defaultValue = "-1") int idPais,
+			@RequestParam(name = "idTipo", required = false, defaultValue = "-1") int idTipo,
+			HttpServletRequest request, HttpServletResponse response) {
+		try {
+
+			// PASO 1 Fuente de datos
+			List<Revista> lstSalida = revistaService.listaConsultaCompleja("%" + nombre + "%", "%" + frecuencia + "%",
+					fecDesde, fecHasta, estado, idPais, idTipo);
+			JRBeanCollectionDataSource dataSource = new JRBeanCollectionDataSource(lstSalida);
+
+			// PASO 2 Diseño de reporte
+			String fileReporte = request.getServletContext().getRealPath("/reporteRevista.jasper");
+
+			// PASO3 parámetros adicionales
+			Map<String, Object> params = new HashMap<String, Object>();
+
+			JasperReport jasperReport = (JasperReport) JRLoader.loadObject(new FileInputStream(new File(fileReporte)));
+			JasperPrint jasperPrint = JasperFillManager.fillReport(jasperReport, params, dataSource);
+
+			// PASO 5 parametros en el Header del mensajes HTTP
+			response.setContentType("application/pdf");
+			response.addHeader("Content-disposition", "attachment; filename=ReporteAutor.pdf");
+
+			// PASO 6 Se envia el pdf
+			OutputStream outStream = response.getOutputStream();
+			JasperExportManager.exportReportToPdfStream(jasperPrint, outStream);
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 }
